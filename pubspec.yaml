@@ -1,0 +1,64 @@
+name: mini_vill_test
+description: A new Flutter project.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.1.0 <4.0.0'
+
+
+dependencies:
+  flame: 1.8.2
+  flutter:
+    sdk: flutter
+  flutter_sequence_animation: ^4.0.0
+  fluttertoast: ^8.2.2
+  auto_size_text: ^3.0.0
+  socket_io_client: ^2.0.0-beta
+  permission_handler: ^10.4.5
+  http: ^0.13.3
+  cupertino_icons: ^1.0.2
+  vibration: ^1.8.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^2.0.0
+
+
+flutter:
+  assets:
+    - assets/center_card/center_card_0.jpg
+    - assets/center_card/center_card_1.jpg
+    - assets/center_card/center_card_2.jpg
+    - assets/center_card/center_card_3.jpg
+    - assets/center_card/center_card_4.jpg
+    - assets/center_card/center_card_5.jpg
+    - assets/center_card/center_card_6.jpg
+    - assets/center_card/center_card_7.jpg
+    - assets/center_card/center_card_8.jpg
+    - assets/center_card/center_card_9.jpg
+    - assets/center_card/center_card_10.jpg
+    - assets/center_card/center_card_11.jpg
+    - assets/center_card/center_card_12.jpg
+    - assets/center_card/center_card_13.jpg
+    - assets/center_card/center_card_14.jpg
+    - assets/dice/dice_1.png
+    - assets/dice/dice_2.png
+    - assets/dice/dice_3.png
+    - assets/dice/dice_4.png
+    - assets/dice/dice_5.png
+    - assets/dice/dice_6.png
+    - assets/major_card/major_card_back_0.jpg
+    - assets/major_card/major_card_back_1.jpg
+    - assets/major_card/major_card_back_2.jpg
+    - assets/major_card/major_card_back_3.jpg
+    - assets/major_card/major_card_front_0.jpg
+    - assets/major_card/major_card_front_1.jpg
+    - assets/major_card/major_card_front_2.jpg
+    - assets/major_card/major_card_front_3.jpg
+
+  uses-material-design: true
+
+
