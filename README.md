@@ -4,4 +4,4 @@
 
 [블로그 설명 글](https://velog.io/@min1042004/series/Flutter%EB%A1%9C-%ED%86%B5%EC%8B%A0%EA%B0%80%EB%8A%A5%ED%95%9C-%EC%A3%BC%EC%82%AC%EC%9C%84-%EB%B3%B4%EB%93%9C%EA%B2%8C%EC%9E%84-%EC%96%B4%ED%94%8C-%EB%A7%8C%EB%93%A4%EA%B8%B0)
 
-[서버 코드 깃](https://github.com/kang-min-seok/minivill_server)
+[서버 코드 깃](https://github.com/kang-min-seok/minivill_server).
