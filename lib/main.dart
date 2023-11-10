@@ -1,17 +1,11 @@
-import 'package:flame/sprite.dart';
-import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:math';
-import 'models/player.dart';
-import 'models/building_card.dart';
-import 'models/major_building_card.dart';
+import 'models/center_building_card.dart';
 import 'models/game.dart';
 import 'models/socket_service.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'dart:async';
-import 'package:vibration/vibration.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +21,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      theme: ThemeData(scaffoldBackgroundColor: Colors.white),
       initialRoute: '/',
       routes: {
         '/': (context) => MainScreen(),
@@ -309,23 +304,17 @@ class _GameScreenState extends State<GameScreen>
   int socketDiceNumber1 = 0;
   int socketDiceNumber2 = 0;
 
-  int myPlayerIdIndex = 0;
+  int mySocketIdIndex = 0;
 
   // 게임 설정
   String? selectedCardPath;
 
   Map<String, int> cardCounts = {};
-  Map<String, bool> cardFlipped = {
-    'assets/major_card/major_card_back_0.jpg': false,
-    'assets/major_card/major_card_back_1.jpg': false,
-    'assets/major_card/major_card_back_2.jpg': false,
-    'assets/major_card/major_card_back_3.jpg': false,
-  };
 
-  bool diceConfirm = false;
 
   late MiniVillGame game;
   late SocketService socketService;
+
 
   List<String> playerName = [
     'waiting..',
@@ -353,6 +342,7 @@ class _GameScreenState extends State<GameScreen>
     WidgetsBinding.instance.addObserver(this);
 
     WidgetsBinding.instance!.addPostFrameCallback((_) {
+
       socketService.onGameStarted((data) {
         String roomCode = data['roomCode'];
         List<dynamic> players = data['players'];
@@ -374,7 +364,7 @@ class _GameScreenState extends State<GameScreen>
         List<dynamic> playerNames = data['playerNames'];
         Future.delayed(Duration(milliseconds: 100), () {
           _showWaitingDialog(context);
-          myPlayerIdIndex = socketService.myPlayerId;
+          mySocketIdIndex = socketService.myPlayerId;
           for (int i = 0; i < playerNames.length; i++) {
             playerName[i] = playerNames[i];
           }
@@ -388,7 +378,7 @@ class _GameScreenState extends State<GameScreen>
           if (socketService.myPlayerId == data['playerId']) {
             _showWaitingDialog(context);
           }
-          myPlayerIdIndex = socketService.myPlayerId;
+          mySocketIdIndex = socketService.myPlayerId;
           for (int i = 0; i < playerNames.length; i++) {
             playerName[i] = playerNames[i];
           }
@@ -436,7 +426,7 @@ class _GameScreenState extends State<GameScreen>
         Future.delayed(Duration(milliseconds: 100), () {
           if (roomCode == socketService.nowRoomCode) {
             String socketSelectedCard;
-            game.players[purchasePlayerId].buildings
+            game.players[purchasePlayerId].centerBuildings
                 .add(game.centerCards[buildingIndex]);
             game.players[purchasePlayerId].money -= buildingCost;
             game.centerCards[buildingIndex].availableCount -= 1;
@@ -471,6 +461,9 @@ class _GameScreenState extends State<GameScreen>
             if (victoryCount >= 4) {
               _showVictoryDialog(
                   context, "${playerNames[purchasePlayerId]}이(가) 승리했어요!");
+              socketService.socket.off('roomCreated');
+              socketService.socket.off('roomJoined');
+              socketService.socket.disconnect();
             }
           }
         });
@@ -533,31 +526,24 @@ class _GameScreenState extends State<GameScreen>
       if (status == AnimationStatus.completed) {
         _controller.reverse();
       } else if (status == AnimationStatus.dismissed) {
-        diceNumber1 = socketDiceNumber1;
-        diceNumber2 = socketDiceNumber2;
-        diceResult = diceNumber1 + (numberOfDiceToRoll == 2 ? diceNumber2 : 0);
-        setState(() {}); // UI 갱신
+        setState(() {
+          diceNumber1 = socketDiceNumber1;
+          diceNumber2 = socketDiceNumber2;
+          diceResult = diceNumber1 + (numberOfDiceToRoll == 2 ? diceNumber2 : 0);
+        }); // UI 갱신
 
         if (!game.players[game.currentPlayerIndex].majorBuildings[3].isActive) {
           // 라디오 방송국 비활성화 시 바로 주사위 이벤트 진행
           game.rollDice(socketDiceResult);
           game.rollDiceStatus = true;
 
-          if (game.players[game.currentPlayerIndex].majorBuildings[2]
-                  .isActive &&
-              diceNumber1 == diceNumber2 &&
-              numberOfDiceToRoll == 2) {
-            game.extraTurn = true;
-            _showCustomDialog(context, "한턴을 추가로 진행할 수 있어요!");
-          }
-        } else if (game
-                .players[game.currentPlayerIndex].majorBuildings[3].isActive &&
+          extraTurnEvent();
+        } else if (game.players[game.currentPlayerIndex].majorBuildings[3].isActive &&
             game.extraDice) {
           // 주사위 다시 굴릴것 인지 물어보는 코드
           game.extraDice = false;
           if (game.currentPlayerIndex == socketService.myPlayerId) {
-            bool shouldRollAgain =
-                await _showDiceRollConfirmationDialog(context);
+            bool shouldRollAgain = await _showDiceRollConfirmationDialog(context);
             if (shouldRollAgain) {
               // 주사위 확정시 주사위 효과 적용
               socketService.extraRollDice(shouldRollAgain, numberOfDiceToRoll,
@@ -567,13 +553,7 @@ class _GameScreenState extends State<GameScreen>
               game.rollDiceStatus = true;
               game.extraDice = true;
 
-              if (game.players[game.currentPlayerIndex].majorBuildings[2]
-                      .isActive &&
-                  diceNumber1 == diceNumber2 &&
-                  numberOfDiceToRoll == 2) {
-                game.extraTurn = true;
-                _showCustomDialog(context, "한턴을 추가로 진행할 수 있어요!");
-              }
+              extraTurnEvent();
             }
           }
         } else {
@@ -583,13 +563,7 @@ class _GameScreenState extends State<GameScreen>
           game.rollDiceStatus = true;
           game.extraDice = true;
 
-          if (game.players[game.currentPlayerIndex].majorBuildings[2]
-                  .isActive &&
-              diceNumber1 == diceNumber2 &&
-              numberOfDiceToRoll == 2) {
-            game.extraTurn = true;
-            _showCustomDialog(context, "한턴을 추가로 진행할 수 있어요!");
-          }
+          extraTurnEvent();
         }
         setState(() {});
       }
@@ -625,6 +599,15 @@ class _GameScreenState extends State<GameScreen>
     }
   }
 
+  void extraTurnEvent(){
+    if (game.players[game.currentPlayerIndex].majorBuildings[2]
+        .isActive &&
+        diceNumber1 == diceNumber2 &&
+        numberOfDiceToRoll == 2) {
+      game.extraTurn = true;
+      _showCustomDialog(context, "한턴을 추가로 진행할 수 있어요!");
+    }
+  }
   _showWaitingDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -638,7 +621,6 @@ class _GameScreenState extends State<GameScreen>
             }
             socketService.socket.off('roomCreated');
             socketService.socket.off('roomJoined');
-            socketService.disconnect();
 
             Navigator.of(context).popUntil((route) => route.isFirst);
 
@@ -669,7 +651,6 @@ class _GameScreenState extends State<GameScreen>
                         }
                         socketService.socket.off('roomCreated');
                         socketService.socket.off('roomJoined');
-                        socketService.disconnect();
                         Navigator.of(context)
                             .popUntil((route) => route.isFirst);
                       },
@@ -727,6 +708,7 @@ class _GameScreenState extends State<GameScreen>
                 children: playerWidgets,
               ),
             ),
+
             //게임스크린 (게임 보드 영역)
             Expanded(
                 child: Padding(
@@ -744,6 +726,7 @@ class _GameScreenState extends State<GameScreen>
                             double itemWidth = constraints.maxWidth / 5;
                             double itemHeight = constraints.maxHeight / 3;
                             return GridView.builder(
+                              physics: NeverScrollableScrollPhysics(),
                               gridDelegate:
                                   SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: 5,
@@ -751,7 +734,8 @@ class _GameScreenState extends State<GameScreen>
                               ),
                               itemCount: game.centerCards.length,
                               itemBuilder: (context, index) {
-                                BuildingCard card = game.centerCards[index];
+                                CenterBuildingCard card =
+                                    game.centerCards[index];
                                 String cardImagePath = card.imagePath;
                                 return GestureDetector(
                                   onTap: () {
@@ -781,131 +765,124 @@ class _GameScreenState extends State<GameScreen>
 
                       Expanded(
                         flex: 1,
-                        child: Stack(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                Expanded(
-                                  flex: 1,
-                                  child: _boardMajorCardImage(
-                                      game.players[myPlayerIdIndex].id, 0),
-                                ),
-                                Expanded(
-                                  flex: 1,
-                                  child: _boardMajorCardImage(
-                                      game.players[myPlayerIdIndex].id, 1),
-                                ),
-                                Expanded(
-                                  flex: 1,
-                                  child: _boardMajorCardImage(
-                                      game.players[myPlayerIdIndex].id, 2),
-                                ),
-                                Expanded(
-                                  flex: 1,
-                                  child: _boardMajorCardImage(
-                                      game.players[myPlayerIdIndex].id, 3),
-                                ),
-                                Expanded(
-                                  flex: 1,
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Expanded(
-                                        flex: 9,
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Expanded(
-                                              flex: 9,
-                                              child: FittedBox(
-                                                child: Icon(Icons.attach_money),
-                                              ),
-                                            ),
-                                            Expanded(
-                                              flex: 1,
-                                              child: SizedBox(),
-                                            ),
-                                            Expanded(
-                                              flex: 9,
-                                              child: AutoSizeText(
-                                                '${game.players[myPlayerIdIndex].money}원',
-                                                minFontSize: 5,
-                                                style:
-                                                    TextStyle(fontSize: 20.0),
-                                                // 시작할 폰트 크기
-                                                maxLines: 1, // 최대 줄 수
-                                              ),
-                                            ),
-                                          ],
+                            Expanded(
+                              flex: 1,
+                              child: _boardMajorCardImage(
+                                  game.players[mySocketIdIndex].id, 0),
+                            ),
+                            Expanded(
+                              flex: 1,
+                              child: _boardMajorCardImage(
+                                  game.players[mySocketIdIndex].id, 1),
+                            ),
+                            Expanded(
+                              flex: 1,
+                              child: _boardMajorCardImage(
+                                  game.players[mySocketIdIndex].id, 2),
+                            ),
+                            Expanded(
+                              flex: 1,
+                              child: _boardMajorCardImage(
+                                  game.players[mySocketIdIndex].id, 3),
+                            ),
+                            Expanded(
+                              flex: 1,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Expanded(
+                                    flex: 9,
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Expanded(
+                                          flex: 9,
+                                          child: FittedBox(
+                                            child: Icon(Icons.attach_money),
+                                          ),
                                         ),
-                                      ),
-                                      Expanded(
-                                        flex: 1,
-                                        child: SizedBox(),
-                                      ),
-                                      Expanded(
-                                        flex: 9,
-                                        child: ElevatedButton(
-                                          onPressed: () {
-                                            _showPlayerBuildingStatusDialog(
-                                                context,
-                                                game.players[myPlayerIdIndex]
-                                                    .id);
-                                          },
+                                        Expanded(
+                                          flex: 1,
+                                          child: SizedBox(),
+                                        ),
+                                        Expanded(
+                                          flex: 9,
                                           child: AutoSizeText(
-                                            '건물 현황',
+                                            '${game.players[mySocketIdIndex].money}원',
                                             minFontSize: 5,
-                                            style: TextStyle(fontSize: 15.0),
+                                            style: TextStyle(fontSize: 20.0),
                                             // 시작할 폰트 크기
                                             maxLines: 1, // 최대 줄 수
                                           ),
                                         ),
-                                      ),
-                                      Expanded(
-                                        flex: 1,
-                                        child: SizedBox(),
-                                      ),
-                                      Expanded(
-                                        flex: 9,
-                                        child: ElevatedButton(
-                                          onPressed: () {
-                                            // 건물 구매 안하고 턴넘기기
-                                            setState(() {
-                                              // 내 차레라는 뜻
-                                              if (game.currentPlayerIndex ==
-                                                  socketService.myPlayerId) {
-                                                if (game.rollDiceStatus) {
-                                                  socketService.nextTurn();
-                                                  game.nextTurn();
-                                                } else {
-                                                  _showCustomDialog(context,
-                                                      "주사위를 먼저 굴리십시오.");
-                                                }
-                                              } else {
-                                                _showCustomDialog(
-                                                    context, "내 차례가 아니에요!");
-                                              }
-                                            });
-                                          },
-                                          child: AutoSizeText(
-                                            '턴 넘기기',
-                                            minFontSize: 5,
-                                            style: TextStyle(fontSize: 15.0),
-                                            // 시작할 폰트 크기
-                                            maxLines: 1, // 최대 줄 수
-                                          ),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        flex: 1,
-                                        child: SizedBox(),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  Expanded(
+                                    flex: 1,
+                                    child: SizedBox(),
+                                  ),
+                                  Expanded(
+                                    flex: 9,
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        _showPlayerBuildingStatusDialog(context,
+                                            game.players[mySocketIdIndex].id);
+                                      },
+                                      child: AutoSizeText(
+                                        '건물 현황',
+                                        minFontSize: 5,
+                                        style: TextStyle(fontSize: 15.0),
+                                        // 시작할 폰트 크기
+                                        maxLines: 1, // 최대 줄 수
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 1,
+                                    child: SizedBox(),
+                                  ),
+                                  Expanded(
+                                    flex: 9,
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        // 건물 구매 안하고 턴넘기기
+                                        setState(() {
+                                          // 내 차레라는 뜻
+                                          if (game.currentPlayerIndex ==
+                                              socketService.myPlayerId) {
+                                            if (game.rollDiceStatus) {
+                                              socketService.nextTurn();
+                                              game.nextTurn();
+                                            } else {
+                                              _showCustomDialog(
+                                                  context, "주사위를 먼저 굴리십시오.");
+                                            }
+                                          } else {
+                                            _showCustomDialog(
+                                                context, "내 차례가 아니에요!");
+                                          }
+                                        });
+                                      },
+                                      child: AutoSizeText(
+                                        '턴 넘기기',
+                                        minFontSize: 5,
+                                        style: TextStyle(fontSize: 15.0),
+                                        // 시작할 폰트 크기
+                                        maxLines: 1, // 최대 줄 수
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 1,
+                                    child: SizedBox(),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -928,11 +905,9 @@ class _GameScreenState extends State<GameScreen>
                             if (game.rollDiceStatus) {
                               if (selectedCardPath != null &&
                                   selectedCardPath!.startsWith('assets/center_card')) {
-                                BuildingCard selectedCard = game.centerCards
-                                    .firstWhere((card) =>
+                                CenterBuildingCard selectedCard = game.centerCards.firstWhere((card) =>
                                         card.imagePath == selectedCardPath);
-                                int selectedIndex =
-                                    game.centerCards.indexOf(selectedCard);
+                                int selectedIndex = game.centerCards.indexOf(selectedCard);
                                 if (selectedCard.availableCount > 0) {
                                   if (selectedCard.cost <=
                                       game.players[game.currentPlayerIndex]
@@ -941,7 +916,7 @@ class _GameScreenState extends State<GameScreen>
                                     cardCounts[selectedCardPath!] =
                                         selectedCard.availableCount;
                                     game.players[game.currentPlayerIndex]
-                                        .buildings
+                                        .centerBuildings
                                         .add(game.centerCards.firstWhere(
                                             (card) =>
                                                 card.imagePath ==
@@ -1007,6 +982,9 @@ class _GameScreenState extends State<GameScreen>
                                     if (victoryCount >= 4) {
                                       _showVictoryDialog(context,
                                           "${playerName[game.currentPlayerIndex]}이(가) 승리했어요!");
+                                      socketService.gameFinish();
+                                      socketService.socket.off('roomCreated');
+                                      socketService.socket.off('roomJoined');
                                     }
 
                                     socketService.nextTurn();
@@ -1137,17 +1115,16 @@ class _GameScreenState extends State<GameScreen>
         ),
       ),
     );
+
   }
 
-  void diceEvent(int numberOfDice){
-    if (game.currentPlayerIndex ==
-        socketService.myPlayerId) {
+  void diceEvent(int numberOfDice) {
+    if (game.currentPlayerIndex == socketService.myPlayerId) {
       if (!game.rollDiceStatus) {
-        if (!game.players[game.currentPlayerIndex]
-            .majorBuildings[0].isActive && numberOfDice == 2) {
-          _showCustomDialog(
-              context, "기차역을 먼저 구매해야 합니다.");
-        }else{
+        if (!game.players[game.currentPlayerIndex].majorBuildings[0].isActive &&
+            numberOfDice == 2) {
+          _showCustomDialog(context, "기차역을 먼저 구매해야 합니다.");
+        } else {
           setState(() {
             diceResult = 0;
             socketDiceResult = 0;
@@ -1157,19 +1134,14 @@ class _GameScreenState extends State<GameScreen>
           socketDiceNumber1 = Random().nextInt(6) + 1;
           socketDiceNumber2 = Random().nextInt(6) + 1;
           socketDiceResult = socketDiceNumber1 +
-              (numberOfDiceToRoll == 2
-                  ? socketDiceNumber2
-                  : 0);
-          socketService.rollDice(
-              socketService.nowRoomCode,
-              numberOfDiceToRoll,
-              socketDiceNumber1,
-              socketDiceNumber2);
+              (numberOfDiceToRoll == 2 ? socketDiceNumber2 : 0);
+          socketService.rollDice(socketService.nowRoomCode, numberOfDiceToRoll,
+              socketDiceNumber1, socketDiceNumber2);
         }
-      }else {
+      } else {
         _showCustomDialog(context, "주사위를 이미 굴리셨습니다.");
       }
-    }else {
+    } else {
       _showCustomDialog(context, "내 차례가 아니에요!");
     }
   }
@@ -1182,6 +1154,9 @@ class _GameScreenState extends State<GameScreen>
     }
     return Container(
       padding: EdgeInsets.all(5.0),
+      margin: EdgeInsets.only(
+        left: 40,
+      ),
       decoration: BoxDecoration(
         border: nowTurn
             ? Border.all(
@@ -1284,12 +1259,10 @@ class _GameScreenState extends State<GameScreen>
         selectedCardPath = backImagePath;
         if (game.players[playerID].majorBuildings[majorNum].isActive) {
           setState(() {
-            cardFlipped[selectedCardPath!] = true;
             selectedCardPath = frontImagePath;
           });
         } else {
           setState(() {
-            cardFlipped[selectedCardPath!] = false;
             selectedCardPath = backImagePath;
           });
         }
@@ -1352,25 +1325,24 @@ class _GameScreenState extends State<GameScreen>
         elevation: 5.0,
         child: Container(
           width: screenWidth * 0.5,
-          height: screenHeight * 0.3,
+          height: screenHeight * 0.5,
           padding: EdgeInsets.all(16.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                dialogText,
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
+              SizedBox(
+                height: screenHeight * 0.2,
+                child: AutoSizeText(
+                  dialogText,
+                  minFontSize: 5,
+                  style:
+                  TextStyle(fontSize: 17.0, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
               ),
-              SizedBox(height: 16.0),
+              SizedBox(height: 10.0),
               ElevatedButton(
                 onPressed: () {
-                  if (socketService.myPlayerId == 0) {
-                    socketService.gameFinish();
-                    socketService.socket.off('roomCreated');
-                    socketService.socket.off('roomJoined');
-                    socketService.disconnect();
-                  }
                   Navigator.of(context).popUntil((route) => route.isFirst);
                 },
                 child: Text('확인'),
@@ -1383,7 +1355,7 @@ class _GameScreenState extends State<GameScreen>
   }
 
   void _showPlayerBuildingStatusDialog(BuildContext context, int playerID) {
-    final playerBuildings = game.players[playerID].buildings;
+    final playerBuildings = game.players[playerID].centerBuildings;
 
     // 건물의 이름을 기반으로 건물의 수를 카운트
     final Map<String, int> buildingCounts = {};
@@ -1489,6 +1461,39 @@ class _GameScreenState extends State<GameScreen>
     );
 
     return result ?? false;
+
+  }
+}
+
+class TransformCard extends StatelessWidget {
+  final double rotation;
+  final String imagePath; // 카드 이미지 경로
+
+  TransformCard({
+    required this.rotation,
+    required this.imagePath,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        double cardHeight = constraints.maxHeight * 0.9;
+        return Transform.translate(
+          offset: Offset(0, 0),
+          child: Transform.rotate(
+            angle: rotation,
+            child: Container(
+              height: cardHeight, // GridView의 높이의 90%
+              child: Image.asset(
+                imagePath,
+                fit: BoxFit.fitHeight, // 이미지가 컨테이너에 맞게 조절됨
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -1504,48 +1509,10 @@ class CardStack extends StatelessWidget {
       alignment: Alignment.center,
       children: List.generate(cardCount, (index) {
         return TransformCard(
-          offset: 0.0,
           rotation: 0.1 * (3 - index), // 3을 카드의 중간 값으로 사용
           imagePath: cardImagePath,
         );
       }),
-    );
-  }
-}
-
-class TransformCard extends StatelessWidget {
-  final double offset;
-  final double rotation;
-  final String imagePath; // 카드 이미지 경로
-
-  TransformCard({
-    required this.offset,
-    required this.rotation,
-    required this.imagePath,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        double cardWidth = constraints.maxWidth * 0.8;
-        double cardHeight = constraints.maxHeight * 0.9;
-
-        return Transform.translate(
-          offset: Offset(offset, offset),
-          child: Transform.rotate(
-            angle: rotation,
-            child: Container(
-              height: cardHeight, // GridView의 높이의 80%
-              width: cardWidth, // GridView의 너비의 80%
-              child: Image.asset(
-                imagePath,
-                fit: BoxFit.fitHeight, // 이미지가 컨테이너에 맞게 조절됨
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }
@@ -1572,24 +1539,29 @@ class ExpandedCardOverlay extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset(cardImagePath,
-                width: screenWidth * 0.3,
-                height: screenHeight * 0.8,
-                fit: BoxFit.fitHeight),
-            SizedBox(height: 10),
+                height: screenHeight * 0.7, fit: BoxFit.fitHeight),
+            SizedBox(height: screenHeight * 0.02),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                        minimumSize:
+                            Size(screenWidth * 0.1, screenHeight * 0.1)),
                     onPressed: () {
                       onPurchase();
                       onClose();
                     },
                     child: Text('구매하기')),
-                SizedBox(width: 10),
-                ElevatedButton(onPressed: onClose, child: Text('취소하기')),
+                SizedBox(width: screenWidth * 0.02),
+                ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                        minimumSize:
+                            Size(screenWidth * 0.1, screenHeight * 0.1)),
+                    onPressed: onClose,
+                    child: Text('취소하기')),
               ],
             ),
-
           ],
         ),
       ),

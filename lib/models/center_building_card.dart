@@ -4,7 +4,7 @@ enum TriggerTurn {
   EveryTurn
 }
 
-class BuildingCard {
+class CenterBuildingCard {
   String name;
   String type;
   int cost;
@@ -15,7 +15,7 @@ class BuildingCard {
   int availableCount;
   String imagePath;
 
-  BuildingCard({
+  CenterBuildingCard({
     required this.name,
     required this.type,
     required this.cost,

@@ -127,11 +127,6 @@ class SocketService {
 
   }
 
-  // Socket 연결 해제
-  void disconnect() {
-    socket.emit('roomQuit', {'roomCode': nowRoomCode, 'socketID': mySocketID});
-    socket.disconnect();
-  }
 
   void gameFinish(){
     socket.emit('gameWon',{'roomCode': nowRoomCode});
